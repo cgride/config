@@ -254,68 +254,35 @@ int main()
 
 ## Build
 
-From the module directory:
+From the module directory, use the Vix workflow:
 
 ```bash
-cmake -S . -B build
-cmake --build build
+vix build
 ```
 
-To disable tests:
+For a release build:
 
 ```bash
-cmake -S . -B build -DCGRIDE_CONFIG_BUILD_TESTS=OFF
-cmake --build build
+vix build --preset release
 ```
 
 ## Run tests
 
 ```bash
-ctest --test-dir build --output-on-failure
+vix check --tests
 ```
 
-Or run them directly:
+Or run the test command directly:
 
 ```bash
-./build/tests/cgride_config_config_options_test
-./build/tests/cgride_config_config_source_test
-./build/tests/cgride_config_config_document_test
-./build/tests/cgride_config_config_parser_test
-./build/tests/cgride_config_config_loader_test
-./build/tests/cgride_config_project_reader_test
+vix tests
 ```
 
 ## Install
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-cmake --install build
+vix install
 ```
 
-The installed CMake package exposes:
+The install step exposes the `cgride::config` integration target, public headers, and package metadata.
 
-```cmake
-find_package(cgride-config CONFIG REQUIRED)
-
-target_link_libraries(my_target
-  PRIVATE
-    cgride::config
-)
-```
-
-## Current status
-
-This module currently provides:
-
-- config options
-- raw config sources
-- parsed config documents
-- section and key/value access
-- strict and non-strict parsing
-- config file loading
-- project document validation
-- CMake package integration
-- unit tests for the public API
-
-The next step is full project mapping: converting config target sections into real `cgride::project::Target` objects with sources, includes, links, requirements, and build metadata.
