@@ -15,7 +15,11 @@
  */
 #include <cgride/config/project_reader.hpp>
 
+#include <algorithm>
+#include <cctype>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include <cgride/core/error.hpp>
 
@@ -36,6 +40,78 @@ namespace cgride::config
       return kind == "executable" ||
              kind == "static_library" ||
              kind == "interface_library";
+    }
+
+    [[nodiscard]] std::string trim(std::string_view value)
+    {
+      auto begin = value.begin();
+      auto end = value.end();
+
+      while (begin != end && std::isspace(static_cast<unsigned char>(*begin)) != 0)
+      {
+        ++begin;
+      }
+
+      while (begin != end && std::isspace(static_cast<unsigned char>(*(end - 1))) != 0)
+      {
+        --end;
+      }
+
+      return std::string(begin, end);
+    }
+
+    [[nodiscard]] std::vector<std::string> split_list(std::string_view value)
+    {
+      std::vector<std::string> values;
+      std::string current;
+
+      for (const auto character : value)
+      {
+        if (character == ',' || character == ';')
+        {
+          auto item = trim(current);
+
+          if (!item.empty())
+          {
+            values.push_back(std::move(item));
+          }
+
+          current.clear();
+          continue;
+        }
+
+        current.push_back(character);
+      }
+
+      auto item = trim(current);
+
+      if (!item.empty())
+      {
+        values.push_back(std::move(item));
+      }
+
+      return values;
+    }
+
+    [[nodiscard]] std::string target_name_from_section(std::string_view section)
+    {
+      return std::string(section.substr(std::string_view("target.").size()));
+    }
+
+    [[nodiscard]] cgride::project::TargetKind target_kind_from_string(
+        std::string_view kind) noexcept
+    {
+      if (kind == "static_library")
+      {
+        return cgride::project::TargetKind::StaticLibrary;
+      }
+
+      if (kind == "interface_library")
+      {
+        return cgride::project::TargetKind::InterfaceLibrary;
+      }
+
+      return cgride::project::TargetKind::Executable;
     }
 
     [[nodiscard]] cgride::core::Result<void> validate_project_section(
@@ -145,6 +221,24 @@ namespace cgride::config
       return cgride::core::Result<void>::ok();
     }
 
+    void apply_optional_list(
+        const ConfigSection &section,
+        std::string_view key,
+        const auto &callback)
+    {
+      const auto value = section.value(key);
+
+      if (!value.has_value())
+      {
+        return;
+      }
+
+      for (auto &item : split_list(value.value()))
+      {
+        callback(std::move(item));
+      }
+    }
+
   } // namespace
 
   cgride::core::Result<cgride::project::Project> ProjectReader::read(
@@ -157,13 +251,49 @@ namespace cgride::config
       return validated.error();
     }
 
-    cgride::project::Project project;
+    const auto *project_section = document.find_section("project");
 
-    /*
-     * The config document is validated here, but target-to-project mapping is
-     * intentionally left for the next step because the project module API is
-     * still evolving independently.
-     */
+    cgride::project::Project project(project_section->value("name").value());
+
+    for (const auto &section : document.sections())
+    {
+      if (!is_target_section(section.name()))
+      {
+        continue;
+      }
+
+      auto &target = project.target(
+          target_name_from_section(section.name()),
+          target_kind_from_string(section.value("kind").value()));
+
+      apply_optional_list(section, "sources", [&target](std::string source) {
+        target.source(std::move(source));
+      });
+
+      apply_optional_list(section, "include_dirs", [&target](std::string include_dir) {
+        target.include_directory(std::move(include_dir));
+      });
+
+      apply_optional_list(section, "definitions", [&target](std::string definition) {
+        target.compile_definition(std::move(definition));
+      });
+
+      apply_optional_list(section, "compile_options", [&target](std::string option) {
+        target.compile_option(std::move(option));
+      });
+
+      apply_optional_list(section, "link_options", [&target](std::string option) {
+        target.link_option(std::move(option));
+      });
+
+      apply_optional_list(section, "libraries", [&target](std::string library) {
+        target.link_library(std::move(library));
+      });
+
+      apply_optional_list(section, "links", [&target](std::string link) {
+        target.link_named(std::move(link));
+      });
+    }
 
     return project;
   }
