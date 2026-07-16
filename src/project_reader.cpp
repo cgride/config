@@ -22,6 +22,7 @@
 #include <vector>
 
 #include <cgride/core/error.hpp>
+#include <cgride/project/visibility.hpp>
 
 namespace cgride::config
 {
@@ -96,6 +97,11 @@ namespace cgride::config
     [[nodiscard]] std::string target_name_from_section(std::string_view section)
     {
       return std::string(section.substr(std::string_view("target.").size()));
+    }
+
+    [[nodiscard]] bool contains_glob_pattern(std::string_view value) noexcept
+    {
+      return value.find_first_of("*?[") != std::string_view::npos;
     }
 
     [[nodiscard]] cgride::project::TargetKind target_kind_from_string(
@@ -267,11 +273,21 @@ namespace cgride::config
           target_kind_from_string(section.value("kind").value()));
 
       apply_optional_list(section, "sources", [&target](std::string source) {
+        if (contains_glob_pattern(source))
+        {
+          target.sources(std::move(source));
+          return;
+        }
+
         target.source(std::move(source));
       });
 
       apply_optional_list(section, "include_dirs", [&target](std::string include_dir) {
         target.include_directory(std::move(include_dir));
+      });
+
+      apply_optional_list(section, "public_include_dirs", [&target](std::string include_dir) {
+        target.include_directory(std::move(include_dir), cgride::project::Visibility::Public);
       });
 
       apply_optional_list(section, "definitions", [&target](std::string definition) {
