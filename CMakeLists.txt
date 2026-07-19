@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22)
 
 project(
   cgride-config
-  VERSION 0.1.0
+  VERSION 0.1.1
   DESCRIPTION "Project configuration loading, parsing and project model reading for Cgride."
   HOMEPAGE_URL "https://github.com/cgride/config"
   LANGUAGES CXX
